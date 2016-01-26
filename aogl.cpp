@@ -6,6 +6,7 @@
 #include <string.h>
 #include <string>
 #include <iostream>
+#include <vector>
 
 #include <cmath>
 
@@ -89,6 +90,18 @@ const float GUIStates::MOUSE_ZOOM_SPEED = 0.05f;
 const float GUIStates::MOUSE_TURN_SPEED = 0.005f;
 void init_gui_states(GUIStates & guiStates);
 
+glm::mat4 rotationMatrix(glm::vec3 axis, float angle)
+{
+    axis = normalize(axis);
+    float s = sin(angle);
+    float c = cos(angle);
+    float oc = 1.0 - c;
+
+    return glm::mat4(oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,  0.0,
+                oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,  0.0,
+                oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c,           0.0,
+                0.0,                                0.0,                                0.0,                                1.0);
+}
 
 int main( int argc, char **argv )
 {
@@ -160,11 +173,11 @@ int main( int argc, char **argv )
     // Try to load and compile shaders
     GLuint vertShaderId = compile_shader_from_file(GL_VERTEX_SHADER, "aogl.vert");
     GLuint fragShaderId = compile_shader_from_file(GL_FRAGMENT_SHADER, "aogl.frag");
-    GLuint geomShaderId = compile_shader_from_file(GL_GEOMETRY_SHADER, "aogl.geom");
+    // GLuint geomShaderId = compile_shader_from_file(GL_GEOMETRY_SHADER, "aogl.geom");
     GLuint programObject = glCreateProgram();
     glAttachShader(programObject, vertShaderId);
     glAttachShader(programObject, fragShaderId);
-    glAttachShader(programObject, geomShaderId);    
+    // glAttachShader(programObject, geomShaderId);    
     glLinkProgram(programObject);
     if (check_link_error(programObject) < 0)
         exit(1);
@@ -228,6 +241,7 @@ int main( int argc, char **argv )
     glProgramUniform1i(programObject, specularLocation, 1);
 
                 // Blit Program Uniform
+    GLuint invMvLocation = glGetUniformLocation(blitProgramObject, "InvMV");
     GLuint blitTextureLocation = glGetUniformLocation(blitProgramObject, "Texture");
     glProgramUniform1i(blitProgramObject, blitTextureLocation, 0);
 
@@ -240,6 +254,9 @@ int main( int argc, char **argv )
     GLuint pointLightPositionLocation = glGetUniformLocation(pointLightProgramObject, "PointLightPosition");
     GLuint pointLightIntensityLocation = glGetUniformLocation(pointLightProgramObject, "PointLightIntensity");
     GLuint pointlightColorLocation = glGetUniformLocation(pointLightProgramObject, "PointLightColor");
+    GLuint pointlightTimeLocation = glGetUniformLocation(pointLightProgramObject, "Time");
+    GLuint pointlightCounterLocation = glGetUniformLocation(pointLightProgramObject, "CounterPointLight");
+    GLuint pointLightInvMvLocation = glGetUniformLocation(pointLightProgramObject, "InvMV");
     glProgramUniform1i(pointLightProgramObject, pointlightColorBufferLocation, 0);
     glProgramUniform1i(pointLightProgramObject, pointlightNormalLocation, 1);
     glProgramUniform1i(pointLightProgramObject, pointlightDepthLocation, 2);
@@ -253,6 +270,7 @@ int main( int argc, char **argv )
     GLuint directionalLightDirectionLocation = glGetUniformLocation(directionalLightProgramObject, "DirectionalLightDirection");
     GLuint directionalLightIntensityLocation = glGetUniformLocation(directionalLightProgramObject, "DirectionalLightIntensity");
     GLuint directionalLightColorLocation = glGetUniformLocation(directionalLightProgramObject, "DirectionalLightColor");
+    GLuint directionalLightInvMvLocation = glGetUniformLocation(directionalLightProgramObject, "InvMV");
     glProgramUniform1i(directionalLightProgramObject, directionalLightColorBufferLocation, 0);
     glProgramUniform1i(directionalLightProgramObject, directionalLightNormalLocation, 1);
     glProgramUniform1i(directionalLightProgramObject, directionalLightDepthLocation, 2);
@@ -269,6 +287,7 @@ int main( int argc, char **argv )
     GLuint spotLightAngleLocation = glGetUniformLocation(spotLightProgramObject, "SpotLightAngle");
     GLuint spotLightFallOffAngleLocation = glGetUniformLocation(spotLightProgramObject, "SpotLightFallOffAngle");
     GLuint spotLightColorLocation = glGetUniformLocation(spotLightProgramObject, "SpotLightColor");
+    GLuint spotLightInvMvLocation = glGetUniformLocation(spotLightProgramObject, "InvMV");
     glProgramUniform1i(spotLightProgramObject, spotLightColorBufferLocation, 0);
     glProgramUniform1i(spotLightProgramObject, spotLightNormalLocation, 1);
     glProgramUniform1i(spotLightProgramObject, spotLightDepthLocation, 2);
@@ -333,7 +352,7 @@ int main( int argc, char **argv )
 
     // Create normal texture
     glBindTexture(GL_TEXTURE_2D, gbufferTextures[1]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_FLOAT, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -376,8 +395,8 @@ int main( int argc, char **argv )
     init_gui_states(guiStates);
     float dummySlider = 0.f;
 
-    float counterCube = 3.0;
-    float counterPlane = 16.0;
+    float counterCube = 16.0;
+    float counterPlane = 100.0;
 
     // Init objects geometry
     int cube_triangleCount = 12;
@@ -400,28 +419,30 @@ int main( int argc, char **argv )
 
 
     // Init LIGHTS
-    float _specularPower = 10.0;
+    float _specularPower = 12.0;
 
     struct PointLight{
         glm::vec4 _position;
         glm::vec3 _color;
         float _intensity;
     };
+    float nbPointLights = 1.f;
+    int counterCircle = 0; 
 
-    PointLight pl1, pl2;
-    int nbPointLights = 2;
+    // PointLight pl1, pl2;
+    // int nbPointLights = 2; 
 
-    pl1._position = glm::vec4(7.0, 0.9, 12.0, 1.0); // Point Light Position
-    pl1._color = glm::vec3(0.1,0.5,0.1); // Point Light Color
-    pl1._intensity = 0.95; // Point Light Intensity
+    // pl1._position = glm::vec4(7.0, 0.9, 12.0, 1.0); // Point Light Position
+    // pl1._color = glm::vec3(0.1,0.5,0.1); // Point Light Color
+    // pl1._intensity = 0.95; // Point Light Intensity
             
-    pl2._position = glm::vec4(11.0, 0.9, 1.0, 1.0); // Point Light 2 Position
-    pl2._color = glm::vec3(0.1,0.1,0.95); // Point Light 2 Color
-    pl2._intensity = 0.95; // Point Light 2 Intensity
+    // pl2._position = glm::vec4(11.0, 0.9, 1.0, 1.0); // Point Light 2 Position
+    // pl2._color = glm::vec3(0.1,0.1,0.95); // Point Light 2 Color
+    // pl2._intensity = 0.95; // Point Light 2 Intensity
 
-    PointLight pointLights[nbPointLights];
-    pointLights[0] = pl1;
-    pointLights[1] = pl2;
+    // PointLight pointLights[nbPointLights];
+    // pointLights[0] = pl1;
+    // pointLights[1] = pl2;
 
 
     struct DirectionalLight{
@@ -433,9 +454,10 @@ int main( int argc, char **argv )
     int nbDirectionalLights = 1;
 
     DirectionalLight dl1;
+    // dl1._direction = glm::vec4(-1.0, -1.0, -1.0, 0.0);
     dl1._direction = glm::vec4(-1.0, -1.0, -1.0, 0.0);
-    dl1._color = glm::vec3(0.3, 0.3, 0.9);
-    dl1._intensity = 0.5;
+    dl1._color = glm::vec3(0.9, 0.9, 0.9);
+    dl1._intensity = 0.2;
 
     DirectionalLight directionalLights[nbDirectionalLights];
     directionalLights[0] = dl1;
@@ -454,11 +476,11 @@ int main( int argc, char **argv )
 
     SpotLight sl1 = {
         glm::vec4(3.0, 4.0, 5.0, 1.0),
-        glm::vec4(-0.0, -1.0, -0.0, 1.0),
+        glm::vec4(-1.0, -1.0, -1.0, 1.0),
         glm::vec3(0.9, 0.1, 0.6),
         50.0,
         65.0,
-        0.3
+        0.01
     };
 
     SpotLight spotLights[nbDirectionalLights];
@@ -636,9 +658,10 @@ int main( int argc, char **argv )
         glm::mat4 worldToView = glm::lookAt(camera.eye, camera.o, camera.up);
         glm::mat4 objectToWorld;
         glm::mat4 mv = worldToView * objectToWorld;
+        glm::mat4 invMv = glm::inverse(mv);
         glm::mat4 mvp = projection * mv;
         // Compute the inverse worldToScreen matrix
-        glm::mat4 screenToWorld = glm::transpose(glm::inverse(mvp));
+        glm::mat4 screenToWorld = glm::inverse(mvp); // invMVP
 
 
         // Select shader
@@ -653,7 +676,7 @@ int main( int argc, char **argv )
             glProgramUniform1i(programObject, specularLocation, 1);
             glProgramUniform3fv(programObject, cameraLocation, 1, glm::value_ptr(camera.eye));
             glProgramUniform3fv(programObject, cameraPositionLocation, 1, glm::value_ptr(camera.eye));
-            glProgramUniform1i(programObject, specularPowerLocation, _specularPower);      
+            glProgramUniform1f(programObject, specularPowerLocation, _specularPower);      
             glProgramUniform1f(programObject, CounterCubeLocation, counterCube);
             glProgramUniform1f(programObject, CounterPlaneLocation, counterPlane);
 
@@ -668,8 +691,7 @@ int main( int argc, char **argv )
             glDrawElementsInstanced(GL_TRIANGLES, cube_triangleCount * 3, GL_UNSIGNED_INT, (void*)0, counterCube);
      
             //update uniforms for plans
-            t = 0;
-            glProgramUniform1f(programObject, timeLocation, t);
+            glProgramUniform1f(programObject, timeLocation, 0.0);
             // glProgramUniform1i(programObject, diffuseLocation, 1);
 
             glBindVertexArray(vao[1]); // PLANES
@@ -683,7 +705,9 @@ int main( int argc, char **argv )
 
         glDisable(GL_DEPTH_TEST);        // Disable the depth test
         glEnable(GL_BLEND);        // Enable blending
+        glBlendEquation(GL_FUNC_ADD);
         glBlendFunc(GL_ONE, GL_ONE);        // Setup additive blending
+
         glViewport( 0, 0, width, height );        // Set a full screen viewport
 
         // Select textures
@@ -700,22 +724,137 @@ int main( int argc, char **argv )
         // Use the deffered pointLight program
         glUseProgram(pointLightProgramObject);
 
+            // int rayons[] = {5,15,25,35,45,55,65,75,85,95,105, 115, 125};
+            int fd = 10; // first decal
+            int nbLightsByCircle[] = {6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78};
+            int rayon = 5;
+            int counterCircle = 0; 
+            srand (time(NULL));
             for(int i = 0; i < nbPointLights; ++i){
-                glProgramUniformMatrix4fv(pointLightProgramObject, pointLightScreenToWorldLocation, 1, 0, glm::value_ptr(screenToWorld));
-                glProgramUniform1f(pointLightProgramObject, pointLightIntensityLocation, pointLights[i]._intensity);
-                glProgramUniform3fv(pointLightProgramObject, pointLightPositionLocation, 1, glm::value_ptr(glm::vec3(pointLights[i]._position) / pointLights[i]._position.w));
-                glProgramUniform3fv(pointLightProgramObject, pointlightColorLocation, 1, glm::value_ptr(glm::vec3(pointLights[i]._color)));
-                glProgramUniform3fv(pointLightProgramObject, pointLightCameraPositionLocation, 1, glm::value_ptr(camera.eye));
+
+                PointLight p;
+
+                if( i == nbLightsByCircle[counterCircle] ){
+                  counterCircle++;
+                  rayon += 6; 
+                } 
+                float coeff = rayon;
+                float w = t + t;
+                w = 0;
+                p._position = glm::vec4( 
+                    fd+ coeff * cos(i+w*2* M_PI /nbPointLights)  
+                    ,0.5
+                    ,fd+ coeff * sin(i+w*2* M_PI /nbPointLights) 
+                    ,1.0);
+
+                float red = fmaxf(sin(i)+cos(counterCircle), 0.2);
+                float green = fmaxf(cos(i), 0.2);
+                float blue = fmaxf(sin(counterCircle)+cos(counterCircle), 0.2);
                 
+                if(red<0.4 && green <0.4 && blue < 0.4){
+                    int r = rand() % 3 + 1;
+                    if(r==1) blue +=0.5; else if(r==2) green +=0.5; else red +=0.5; 
+                } 
+
+                p._color = glm::vec3( red , green , blue);
+                // p._color = glm::vec3(0.5,0.5,0.95);
+
+                p._intensity = 0.8;
+
+                glProgramUniformMatrix4fv(pointLightProgramObject, pointLightScreenToWorldLocation, 1, 0, glm::value_ptr(screenToWorld));
+                glProgramUniformMatrix4fv(pointLightProgramObject, pointLightInvMvLocation, 1, 0, glm::value_ptr(invMv));
+                glProgramUniform1f(pointLightProgramObject, pointLightIntensityLocation, p._intensity);
+                glProgramUniform3fv(pointLightProgramObject, pointLightPositionLocation, 1, glm::value_ptr(glm::vec3(p._position) / p._position.w));
+                glProgramUniform3fv(pointLightProgramObject, pointlightColorLocation, 1, glm::value_ptr(glm::vec3(p._color)));
+                glProgramUniform3fv(pointLightProgramObject, pointLightCameraPositionLocation, 1, glm::value_ptr(camera.eye));
+                glProgramUniform1f(pointLightProgramObject, pointlightTimeLocation, t);
+                glProgramUniform1f(pointLightProgramObject, pointlightCounterLocation, (int)nbPointLights);
+              
+
+                // changer taille des quads selon influence de la light
+                float n = 4.0;
+                float x = 0.001;
+                float dx = std::pow( (1/x) , 1/n);
+                dx /= 2;
+                // dx = 0.1;
+                float linear = 1.7;
+                float quadratic = 0.5;
+                float maxBrightness = std::max(std::max(p._color.r, p._color.g), p._color.b);
+                float radius = (-linear + std::sqrt(linear * linear - 4 * quadratic * (1.0 - (256.0 / 5.0) * maxBrightness))) / (2 * quadratic);
+                dx = radius/2;
+                // std::cout << "dx = " << dx << std::endl;
+
+                    //list de 8 points du cube
+                    //on projete ces points sur le plan Screen (MVM*)
+                    // on prend le plus haut et le plus bas et le plus gauche et le plus droite
+                    // on construit un quad avec ces coords
+                    // et biim
+
+                float px = p._position.x;
+                float py = p._position.y;
+                // py = 0.01;
+                float pz = p._position.z;
+                std::vector<glm::vec3> cube;
+
+                cube.push_back(glm::vec3(px-dx,py-dx,pz-dx)); // left bot back
+                cube.push_back(glm::vec3(px+dx,py-dx,pz-dx)); // right bot back
+                cube.push_back(glm::vec3(px-dx,py-dx,pz+dx)); // left bot front
+                cube.push_back(glm::vec3(px+dx,py-dx,pz+dx)); // right bot front
+                cube.push_back(glm::vec3(px+dx,py+dx,pz-dx)); // right top back
+                cube.push_back(glm::vec3(px-dx,py+dx,pz-dx)); // left top back
+                cube.push_back(glm::vec3(px-dx,py+dx,pz+dx)); // left top front
+                cube.push_back(glm::vec3(px+dx,py+dx,pz+dx)); // right top front
+            
+                float wt = t;
+                glm::mat4 rotateMatrix = rotationMatrix(glm::vec3(0.,-1.,0.) , wt);
+
+                glm::vec4 projInitPoint = mvp * rotateMatrix * glm::vec4(cube[0], 1.0);
+                projInitPoint /= projInitPoint.w;
+                glm::vec2 mostLeft(glm::vec2(projInitPoint.x,projInitPoint.y));
+                glm::vec2 mostRight(glm::vec2(projInitPoint.x,projInitPoint.y));
+                glm::vec2 mostTop(glm::vec2(projInitPoint.x,projInitPoint.y));
+                glm::vec2 mostBottom(glm::vec2(projInitPoint.x,projInitPoint.y));
+
+                for(int k=1; k<8; ++k){
+                    glm::vec4 projPoint = mvp * rotateMatrix *  glm::vec4(cube[k], 1.0);
+                    projPoint /= projPoint.w;
+                    if( projPoint.x < mostLeft.x) mostLeft = glm::vec2(projPoint.x, projPoint.y);
+                    if( projPoint.y > mostTop.y) mostTop = glm::vec2(projPoint.x, projPoint.y);
+                    if( projPoint.x > mostRight.x) mostRight = glm::vec2(projPoint.x, projPoint.y);
+                    if( projPoint.y < mostBottom.y) mostBottom = glm::vec2(projPoint.x, projPoint.y);
+
+                // std::cout << projPoint.x << " " << projPoint.y << " " << projPoint.z << " " << projPoint.w << std::endl;
+
+                }   
+
+                // std::cout << "left: " << mostLeft.x << " right: " << mostRight.x << " top: " << mostTop.y << " bot: " << mostBottom.y << std::endl;
+
+                float quad_light_vertices[] =  {mostLeft.x, mostBottom.y, mostRight.x, mostBottom.y,
+                                                     mostLeft.x, mostTop.y, mostRight.x, mostTop.y};
+
+
+                glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
+                glEnableVertexAttribArray(0);
+                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GL_FLOAT)*2, (void*)0);
+                glBufferData(GL_ARRAY_BUFFER, sizeof(quad_light_vertices), quad_light_vertices, GL_STATIC_DRAW);
+
                 // Render quad
                 glDrawElements(GL_TRIANGLES, quad_triangleCount * 3, GL_UNSIGNED_INT, (void*)0);
             }
+
+                glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
+                glEnableVertexAttribArray(0);
+                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GL_FLOAT)*2, (void*)0);
+                glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vertices), quad_vertices, GL_STATIC_DRAW);
+
+
 
         // Use the deffered directionalLight program
         glUseProgram(directionalLightProgramObject);
 
             for(int i = 0; i < nbDirectionalLights; ++i){
                 glProgramUniformMatrix4fv(directionalLightProgramObject, directionalLightScreenToWorldLocation, 1, 0, glm::value_ptr(screenToWorld));
+                glProgramUniformMatrix4fv(directionalLightProgramObject, directionalLightInvMvLocation, 1, 0, glm::value_ptr(invMv));
                 glProgramUniform1f(directionalLightProgramObject, directionalLightIntensityLocation, directionalLights[i]._intensity);
                 glProgramUniform3fv(directionalLightProgramObject, directionalLightDirectionLocation, 1, glm::value_ptr(glm::vec3(directionalLights[i]._direction) ));
                 glProgramUniform3fv(directionalLightProgramObject, directionalLightColorLocation, 1, glm::value_ptr(glm::vec3(directionalLights[i]._color)));
@@ -730,6 +869,7 @@ int main( int argc, char **argv )
 
             for(int i = 0; i < nbSpotLights; ++i){
                 glProgramUniformMatrix4fv(spotLightProgramObject, spotLightScreenToWorldLocation, 1, 0, glm::value_ptr(screenToWorld));
+                glProgramUniformMatrix4fv(spotLightProgramObject, spotLightInvMvLocation, 1, 0, glm::value_ptr(invMv));
                 glProgramUniform3fv(spotLightProgramObject, spotLightColorLocation, 1, glm::value_ptr(spotLights[i]._color));
                 glProgramUniform1f(spotLightProgramObject, spotLightIntensityLocation, spotLights[i]._intensity);
                 glProgramUniform3fv(spotLightProgramObject, spotLightPositionLocation, 1, glm::value_ptr(glm::vec3(spotLights[i]._position) ));
@@ -751,6 +891,9 @@ int main( int argc, char **argv )
         // Use the blit program
         glUseProgram(blitProgramObject);
 
+            glProgramUniformMatrix4fv(blitProgramObject, invMvLocation, 1, 0, glm::value_ptr(invMv));
+
+
             // Bind quad VAO
             glBindVertexArray(vao[2]);
 
@@ -764,14 +907,14 @@ int main( int argc, char **argv )
 
             // Viewport 
             glViewport( width/3, 0, width/3, height/4  );
-            // Bind texture
+            // Bind gbuffer normal texture
             glBindTexture(GL_TEXTURE_2D, gbufferTextures[1]);
             // Draw quad
             glDrawElements(GL_TRIANGLES, quad_triangleCount * 3, GL_UNSIGNED_INT, (void*)0);
 
             // Viewport 
             glViewport( 2*width/3 , 0, width/3, height/4  );
-            // Bind texture
+            // Bind gbuffer depth texture
             glBindTexture(GL_TEXTURE_2D, gbufferTextures[2]);
             // Draw quad
             glDrawElements(GL_TRIANGLES, quad_triangleCount * 3, GL_UNSIGNED_INT, (void*)0);
@@ -806,11 +949,12 @@ int main( int argc, char **argv )
         imguiLabel(lineBuffer);
         imguiSlider("Dummy", &dummySlider, 0.0, 3.0, 0.1);
         imguiSlider("Counter Cube", &counterCube, 0.0, 100.0, 1);
-        imguiSlider("Counter Plane", &counterPlane, 0.0, 100.0, 1);
-        imguiSlider("Specular Power", &_specularPower, 0.0, 10.0, 0.1);
-        imguiSlider("Point light n°1 Intensity", &pointLights[0]._intensity, 0.0, 1.0, 0.1);
-        imguiSlider("Point light n°2 Intensity", &pointLights[1]._intensity, 0.0, 1.0, 0.1);
-        imguiSlider("Point light n°1 Pos Y", &pointLights[0]._position.y, -10.0, 20.0, 0.5);
+        imguiSlider("Counter Plane", &counterPlane, 0.0, 400.0, 1);
+        imguiSlider("Counter Point Light", &nbPointLights, 0.0, 100.0, 1);
+        imguiSlider("Specular Power", &_specularPower, 0.0, 100.0, 1.0);
+        // imguiSlider("Point light n°1 Intensity", &pointLights[0]._intensity, 0.0, 1.0, 0.1);
+        // imguiSlider("Point light n°2 Intensity", &pointLights[1]._intensity, 0.0, 1.0, 0.1);
+        // imguiSlider("Point light n°1 Pos Y", &pointLights[0]._position.y, -10.0, 20.0, 0.5);
         imguiSlider("Directional light n°1 Intensity", &directionalLights[0]._intensity, 0.0, 1.0, 0.1);
         imguiSlider("Spot light n°1 Intensity", &spotLights[0]._intensity, 0.0, 1.0, 0.1);
         imguiSlider("Spot Light Angle", &spotLights[0]._angle, 0.0, 180.0, 0.1);

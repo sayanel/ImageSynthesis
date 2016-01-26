@@ -53,23 +53,44 @@ void main()
 {	
 
 
-	float w = Time * gl_InstanceID;
-	// w = 0;
+	// float w = Time * gl_InstanceID/10;
+	float w = Time;
+	w = 0;
 	mat4 rotateMatrix = rotationMatrix(vec3(0.,1.,0.) , w);
 
 
 	vec3 pos = Position;
 
-	if(Time != 0) pos.y += 1.2*gl_InstanceID; // Cubes
+	if(Time != 0){ // Cubes
+		// pos.y += 1.2*gl_InstanceID; 	
+		float m = 2.0; // mult
+		vec3 newPos = vec3(0.0,0.0,0.0);
+		// // Les cubes forment un carrés 
+		newPos.x = mod(gl_InstanceID, int(sqrt(CounterCube)));
+		newPos.y = 0;
+		newPos.z = gl_InstanceID / int(sqrt(CounterCube));
+		newPos.x *= m;
+		newPos.z *= m;
+
+		pos+= newPos;
+
+		// rotateMatrix =  rotationMatrix(pos+vec3(0.0, 0.5, 0.0) , w);
+	} 
 	else{ // Planes 	
 		vec3 newPos;
+		int decal = 40;
 		newPos.x = mod(gl_InstanceID, int(sqrt(CounterPlane)));
 		newPos.y = 0;
 		newPos.z = gl_InstanceID / int(sqrt(CounterPlane));
 		newPos.x *=10.2;
 		newPos.z *=10.2;
+		newPos.x -= decal;
+		newPos.z -= decal;
+
 		pos+= newPos;
 	}
+
+	
 
 	vec3 nor = Normal;
 
@@ -81,15 +102,8 @@ void main()
 	
 	// Repère Objet
 	Out.Position = (rotateMatrix  * vec4(pos,1.0)).xyz;
-	Out.Normal = (rotateMatrix  * vec4(nor,1.0)).xyz;
+	Out.Normal = (MV * rotateMatrix  * vec4(nor,0.0)).xyz ;
 
 	gl_Position =  MVP * rotateMatrix * vec4(pos, 1.0);
 }
-
-
-    // length(fract(5.0 * P))
-    // length(abs(fract(5.0 * P) * 2.0 - 1.0))
-    // mod(floor(10.0 * P.x) + floor(10.0 * P.y), 2.0)
-    // smoothstep(0.3, 0.32, length(fract(5.0 * P) - 0.5))
-    // smoothstep(0.4, 0.5, max(abs(fract(8.0 * P.x - 0.5 * mod(floor(8.0 * P.y), 2.0)) - 0.5), abs(fract(8.0 * P.y) - 0.5)))
 

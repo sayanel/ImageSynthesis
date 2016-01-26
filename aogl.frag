@@ -9,6 +9,8 @@
 
 precision highp int;
 
+uniform mat4 MV;
+
 uniform float Time;
 uniform sampler2D Diffuse;
 uniform sampler2D Specular;
@@ -33,7 +35,7 @@ uniform float SpotLightFallOffAngle;
 uniform vec3 SpotLightColor;
 
 uniform vec3 Camera;
-uniform int SpecularPower;
+uniform float SpecularPower;
 uniform int NbPointLights;
 
 uniform struct Light {
@@ -154,6 +156,21 @@ vec3 computeIllumination(){
 
 }
 
+vec3 encodeStereographicProjection(vec3 n){
+    float scale = 1.7777;
+    vec2 enc = n.xy / (n.z+1);
+    enc /= scale;
+    enc = enc*0.5+0.5;
+    return vec3(enc,0);
+}
+
+vec3 encodeSphereMapTransform(vec3 n)
+{
+    float p = sqrt(n.z*8+8);
+    return vec3(n.xy/p + 0.5,0);
+}
+
+
 void main()
 {
  
@@ -167,9 +184,11 @@ void main()
 	// TD LIGHTING DEFFERED SHADING
 	vec4 color = vec4(texture(Diffuse, In.TexCoord).rgb, texture(Diffuse, In.TexCoord).r);
 	Color = color;
-	
-	vec4 normal = vec4(In.Normal, SpecularPower);
-	Normal = normal;
+	// Color = vec4(SpecularPower);
+
+	// vec4 normal = vec4(encode(In.Normal), SpecularPower);
+	vec3 normal = encodeStereographicProjection(In.Normal);
+	Normal = vec4(normal, SpecularPower/100);
 
 
 	// // EX

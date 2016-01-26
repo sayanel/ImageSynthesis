@@ -1,4 +1,5 @@
-# aogl_course_2015
-Small code template for an OpenGL course : http://adrien.io/opengl-course
+My code for an OpenGL course you can find here: http://adrien.io/opengl-course
 
-Start each course using the master branch. Solutions for each course are in branches.
+./build/premake4.linux gmake
+make
+make config=release && ./aogl

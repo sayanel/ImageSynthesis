@@ -118,5 +118,6 @@ void main(void)
     // Color = vec4(1.0, 0.0, 1.0, 1.0);
      // color += vec3(0.2,0, 0);
 
+     // color = n;
     Color = vec4(color, 1.0);
 }

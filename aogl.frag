@@ -150,10 +150,7 @@ vec3 spotLight(){
 }
 
 vec3 computeIllumination(){
-
-	// return directionalLight() ;
 	return  pointLight() + pointLight2() + directionalLight() + spotLight() ;
-
 }
 
 vec3 encodeStereographicProjection(vec3 n){
@@ -184,9 +181,7 @@ void main()
 	// TD LIGHTING DEFFERED SHADING
 	vec4 color = vec4(texture(Diffuse, In.TexCoord).rgb, texture(Diffuse, In.TexCoord).r);
 	Color = color;
-	// Color = vec4(SpecularPower);
 
-	// vec4 normal = vec4(encode(In.Normal), SpecularPower);
 	vec3 normal = encodeStereographicProjection(In.Normal);
 	Normal = vec4(normal, SpecularPower/100);
 

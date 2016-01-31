@@ -105,7 +105,7 @@ glm::mat4 rotationMatrix(glm::vec3 axis, float angle)
 
 int main( int argc, char **argv )
 {
-    int width = 1024*1.6, height= 768*1.2;
+    int width = 1024*1.8, height= 768*1.3;
     float widthf = (float) width, heightf = (float) height;
     double t;
     float fps = 0.f;
@@ -395,8 +395,8 @@ int main( int argc, char **argv )
     init_gui_states(guiStates);
     float dummySlider = 0.f;
 
-    float counterCube = 16.0;
-    float counterPlane = 100.0;
+    float counterCube = 50000.0;
+    float counterPlane = 50000.0;
 
     // Init objects geometry
     int cube_triangleCount = 12;
@@ -427,23 +427,8 @@ int main( int argc, char **argv )
         float _intensity;
     };
     float nbPointLights = 1.f;
-    int counterCircle = 0; 
-
-    // PointLight pl1, pl2;
-    // int nbPointLights = 2; 
-
-    // pl1._position = glm::vec4(7.0, 0.9, 12.0, 1.0); // Point Light Position
-    // pl1._color = glm::vec3(0.1,0.5,0.1); // Point Light Color
-    // pl1._intensity = 0.95; // Point Light Intensity
-            
-    // pl2._position = glm::vec4(11.0, 0.9, 1.0, 1.0); // Point Light 2 Position
-    // pl2._color = glm::vec3(0.1,0.1,0.95); // Point Light 2 Color
-    // pl2._intensity = 0.95; // Point Light 2 Intensity
-
-    // PointLight pointLights[nbPointLights];
-    // pointLights[0] = pl1;
-    // pointLights[1] = pl2;
-
+    float globalPointLightsIntensity = 0.8;
+    float pointLightPosY = 1.0;
 
     struct DirectionalLight{
         glm::vec4 _direction;
@@ -452,16 +437,12 @@ int main( int argc, char **argv )
     };
 
     int nbDirectionalLights = 1;
-
     DirectionalLight dl1;
-    // dl1._direction = glm::vec4(-1.0, -1.0, -1.0, 0.0);
     dl1._direction = glm::vec4(-1.0, -1.0, -1.0, 0.0);
     dl1._color = glm::vec3(0.9, 0.9, 0.9);
     dl1._intensity = 0.2;
-
     DirectionalLight directionalLights[nbDirectionalLights];
     directionalLights[0] = dl1;
-
 
     struct SpotLight{
         glm::vec4 _position;
@@ -473,7 +454,6 @@ int main( int argc, char **argv )
     };
 
     int nbSpotLights = 1;
-
     SpotLight sl1 = {
         glm::vec4(3.0, 4.0, 5.0, 1.0),
         glm::vec4(-1.0, -1.0, -1.0, 1.0),
@@ -482,9 +462,9 @@ int main( int argc, char **argv )
         65.0,
         0.01
     };
-
     SpotLight spotLights[nbDirectionalLights];
     spotLights[0] = sl1;
+
 
 
     // Create a Vertex Array Object
@@ -654,7 +634,7 @@ int main( int argc, char **argv )
 
 
         // Get camera matrices
-        glm::mat4 projection = glm::perspective(45.0f, widthf / heightf, 0.1f, 100.f); 
+        glm::mat4 projection = glm::perspective(45.0f, widthf / heightf, 0.1f, 10000.f); 
         glm::mat4 worldToView = glm::lookAt(camera.eye, camera.o, camera.up);
         glm::mat4 objectToWorld;
         glm::mat4 mv = worldToView * objectToWorld;
@@ -686,7 +666,7 @@ int main( int argc, char **argv )
             glBindTexture(GL_TEXTURE_2D, textures[1]);
 
 
-            glBindVertexArray(vao[0]); // CUBES    
+            glBindVertexArray(vao[0]); // DRAW CUBES    
             // glBindTexture(GL_TEXTURE_2D, textures[2]);
             glDrawElementsInstanced(GL_TRIANGLES, cube_triangleCount * 3, GL_UNSIGNED_INT, (void*)0, counterCube);
      
@@ -694,19 +674,19 @@ int main( int argc, char **argv )
             glProgramUniform1f(programObject, timeLocation, 0.0);
             // glProgramUniform1i(programObject, diffuseLocation, 1);
 
-            glBindVertexArray(vao[1]); // PLANES
+            glBindVertexArray(vao[1]); // DRAW PLANES
             // glDrawElements(GL_TRIANGLES, plane_triangleCount * 3, GL_UNSIGNED_INT, (void*)0);
             glDrawElementsInstanced(GL_TRIANGLES, plane_triangleCount * 3, GL_UNSIGNED_INT, (void*)0, counterPlane);
 
 
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);        // Unbind the framebuffer
+        glBindFramebuffer(GL_FRAMEBUFFER, 0); // Unbind the framebuffer
 
 
 
-        glDisable(GL_DEPTH_TEST);        // Disable the depth test
-        glEnable(GL_BLEND);        // Enable blending
+        glDisable(GL_DEPTH_TEST); // Disable the depth test
+        glEnable(GL_BLEND); // Enable blending
         glBlendEquation(GL_FUNC_ADD);
-        glBlendFunc(GL_ONE, GL_ONE);        // Setup additive blending
+        glBlendFunc(GL_ONE, GL_ONE); // Setup additive blending
 
         glViewport( 0, 0, width, height );        // Set a full screen viewport
 
@@ -724,78 +704,60 @@ int main( int argc, char **argv )
         // Use the deffered pointLight program
         glUseProgram(pointLightProgramObject);
 
-            // int rayons[] = {5,15,25,35,45,55,65,75,85,95,105, 115, 125};
-            int fd = 10; // first decal
-            int nbLightsByCircle[] = {6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78};
+            srand (time(NULL));
+            int fd = 0; // first decal
             int rayon = 5;
             int counterCircle = 0; 
-            srand (time(NULL));
+            int cptVisiblePointLight = 0;
+
+            // render all the points lights
             for(int i = 0; i < nbPointLights; ++i){
 
                 PointLight p;
 
-                if( i == nbLightsByCircle[counterCircle] ){
+                if( i == counterCircle*6 ){ 
                   counterCircle++;
-                  rayon += 6; 
+                  rayon += 1; 
                 } 
-                float coeff = rayon;
-                float w = t + t;
-                w = 0;
+
+                float w = t; // rotation en fonction du temps
+                // w = 0;
+
                 p._position = glm::vec4( 
-                    fd+ coeff * cos(i+w*2* M_PI /nbPointLights)  
-                    ,0.5
-                    ,fd+ coeff * sin(i+w*2* M_PI /nbPointLights) 
+                    fd+ rayon * cos(i+w*2* M_PI /nbPointLights)  
+                    ,pointLightPosY
+                    ,fd+ rayon * sin(i+w*2* M_PI /nbPointLights) 
                     ,1.0);
 
                 float red = fmaxf(sin(i)+cos(counterCircle), 0.2);
                 float green = fmaxf(cos(i), 0.2);
                 float blue = fmaxf(sin(counterCircle)+cos(counterCircle), 0.2);
-                
+
+                // si la lumière n'est pas assez puissante on va booster un channel au hasard
                 if(red<0.4 && green <0.4 && blue < 0.4){
                     int r = rand() % 3 + 1;
                     if(r==1) blue +=0.5; else if(r==2) green +=0.5; else red +=0.5; 
                 } 
 
                 p._color = glm::vec3( red , green , blue);
-                // p._color = glm::vec3(0.5,0.5,0.95);
+                p._intensity = globalPointLightsIntensity;
 
-                p._intensity = 0.8;
-
-                glProgramUniformMatrix4fv(pointLightProgramObject, pointLightScreenToWorldLocation, 1, 0, glm::value_ptr(screenToWorld));
-                glProgramUniformMatrix4fv(pointLightProgramObject, pointLightInvMvLocation, 1, 0, glm::value_ptr(invMv));
-                glProgramUniform1f(pointLightProgramObject, pointLightIntensityLocation, p._intensity);
-                glProgramUniform3fv(pointLightProgramObject, pointLightPositionLocation, 1, glm::value_ptr(glm::vec3(p._position) / p._position.w));
-                glProgramUniform3fv(pointLightProgramObject, pointlightColorLocation, 1, glm::value_ptr(glm::vec3(p._color)));
-                glProgramUniform3fv(pointLightProgramObject, pointLightCameraPositionLocation, 1, glm::value_ptr(camera.eye));
-                glProgramUniform1f(pointLightProgramObject, pointlightTimeLocation, t);
-                glProgramUniform1f(pointLightProgramObject, pointlightCounterLocation, (int)nbPointLights);
-              
-
-                // changer taille des quads selon influence de la light
-                float n = 4.0;
-                float x = 0.001;
-                float dx = std::pow( (1/x) , 1/n);
-                dx /= 2;
-                // dx = 0.1;
+                
+                // calcul de la zone d'influence de la point light
+                // float n = 4.0;
+                // float x = 0.001;
+                // float dx = ( std::pow( (1/x) , 1/n) ) /2;
                 float linear = 1.7;
                 float quadratic = 0.5;
                 float maxBrightness = std::max(std::max(p._color.r, p._color.g), p._color.b);
-                float radius = (-linear + std::sqrt(linear * linear - 4 * quadratic * (1.0 - (256.0 / 5.0) * maxBrightness))) / (2 * quadratic);
-                dx = radius/2;
-                // std::cout << "dx = " << dx << std::endl;
+                float radius = ( (-linear + std::sqrt(linear * linear - 4 * quadratic * (1.0 - (256.0 / 5.0) * maxBrightness))) / (2 * quadratic) ) /2;
+                float dx = radius;
 
-                    //list de 8 points du cube
-                    //on projete ces points sur le plan Screen (MVM*)
-                    // on prend le plus haut et le plus bas et le plus gauche et le plus droite
-                    // on construit un quad avec ces coords
-                    // et biim
-
+                // création d'un cube d'influence autour de la point light
+                std::vector<glm::vec3> cube;
                 float px = p._position.x;
                 float py = p._position.y;
-                // py = 0.01;
                 float pz = p._position.z;
-                std::vector<glm::vec3> cube;
-
                 cube.push_back(glm::vec3(px-dx,py-dx,pz-dx)); // left bot back
                 cube.push_back(glm::vec3(px+dx,py-dx,pz-dx)); // right bot back
                 cube.push_back(glm::vec3(px-dx,py-dx,pz+dx)); // left bot front
@@ -806,6 +768,7 @@ int main( int argc, char **argv )
                 cube.push_back(glm::vec3(px+dx,py+dx,pz+dx)); // right top front
             
                 float wt = t;
+                // wt = 0;
                 glm::mat4 rotateMatrix = rotationMatrix(glm::vec3(0.,-1.,0.) , wt);
 
                 glm::vec4 projInitPoint = mvp * rotateMatrix * glm::vec4(cube[0], 1.0);
@@ -823,25 +786,37 @@ int main( int argc, char **argv )
                     if( projPoint.x > mostRight.x) mostRight = glm::vec2(projPoint.x, projPoint.y);
                     if( projPoint.y < mostBottom.y) mostBottom = glm::vec2(projPoint.x, projPoint.y);
 
-                // std::cout << projPoint.x << " " << projPoint.y << " " << projPoint.z << " " << projPoint.w << std::endl;
-
                 }   
 
-                // std::cout << "left: " << mostLeft.x << " right: " << mostRight.x << " top: " << mostTop.y << " bot: " << mostBottom.y << std::endl;
 
-                float quad_light_vertices[] =  {mostLeft.x, mostBottom.y, mostRight.x, mostBottom.y,
-                                                     mostLeft.x, mostTop.y, mostRight.x, mostTop.y};
+                // Render quad si au moins une partie dela light est dans l'écran
+                float limit = 1.;
+                
+                if( ( (mostLeft.x > -limit && mostLeft.x < limit) || (mostRight.x > -limit && mostRight.x < limit) ) 
+                    &&  ( (mostTop.y > -limit && mostTop.y < limit) || (mostBottom.y > -limit && mostBottom.y < limit) ) )
+                {  
 
+                    glProgramUniformMatrix4fv(pointLightProgramObject, pointLightScreenToWorldLocation, 1, 0, glm::value_ptr(screenToWorld));
+                    glProgramUniformMatrix4fv(pointLightProgramObject, pointLightInvMvLocation, 1, 0, glm::value_ptr(invMv));
+                    glProgramUniform1f(pointLightProgramObject, pointLightIntensityLocation, p._intensity);
+                    glProgramUniform3fv(pointLightProgramObject, pointLightPositionLocation, 1, glm::value_ptr(glm::vec3(p._position) / p._position.w));
+                    glProgramUniform3fv(pointLightProgramObject, pointlightColorLocation, 1, glm::value_ptr(glm::vec3(p._color)));
+                    glProgramUniform3fv(pointLightProgramObject, pointLightCameraPositionLocation, 1, glm::value_ptr(camera.eye));
+                    glProgramUniform1f(pointLightProgramObject, pointlightTimeLocation, t);
+                    glProgramUniform1f(pointLightProgramObject, pointlightCounterLocation, (int)nbPointLights);
+                                 
+                    float quad_light_vertices[] =  {mostLeft.x, mostBottom.y, mostRight.x, mostBottom.y, mostLeft.x, mostTop.y, mostRight.x, mostTop.y};
 
-                glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
-                glEnableVertexAttribArray(0);
-                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GL_FLOAT)*2, (void*)0);
-                glBufferData(GL_ARRAY_BUFFER, sizeof(quad_light_vertices), quad_light_vertices, GL_STATIC_DRAW);
+                    glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
+                    glEnableVertexAttribArray(0);
+                    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GL_FLOAT)*2, (void*)0);
+                    glBufferData(GL_ARRAY_BUFFER, sizeof(quad_light_vertices), quad_light_vertices, GL_STATIC_DRAW);
 
-                // Render quad
-                glDrawElements(GL_TRIANGLES, quad_triangleCount * 3, GL_UNSIGNED_INT, (void*)0);
+                    glDrawElements(GL_TRIANGLES, quad_triangleCount * 3, GL_UNSIGNED_INT, (void*)0);
+                    cptVisiblePointLight++;
+                }
+
             }
-
                 glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
                 glEnableVertexAttribArray(0);
                 glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GL_FLOAT)*2, (void*)0);
@@ -944,17 +919,21 @@ int main( int argc, char **argv )
         imguiBeginFrame(mousex, mousey, mbut, mscroll);
         int logScroll = 0;
         char lineBuffer[512];
-        imguiBeginScrollArea("aogl", width - 210, height - 310, 200, 300, &logScroll);
+        char lineBuffer2[512];
+        imguiBeginScrollArea("aogl", width - 210, height - 610, 200, 600, &logScroll);
         sprintf(lineBuffer, "FPS %f", fps);
         imguiLabel(lineBuffer);
+        sprintf(lineBuffer2, "Visible Lights %d", cptVisiblePointLight);
+        imguiLabel(lineBuffer2);
+        
         imguiSlider("Dummy", &dummySlider, 0.0, 3.0, 0.1);
-        imguiSlider("Counter Cube", &counterCube, 0.0, 100.0, 1);
-        imguiSlider("Counter Plane", &counterPlane, 0.0, 400.0, 1);
-        imguiSlider("Counter Point Light", &nbPointLights, 0.0, 100.0, 1);
+        imguiSlider("Counter Cube", &counterCube, 0.0, 150000.0, 1);
+        imguiSlider("Counter Plane", &counterPlane, 0.0, 40000.0, 1);
+        imguiSlider("Counter Point Light", &nbPointLights, 0.0, 10000.0, 1);
+        imguiSlider("Counter Point Light 2", &nbPointLights, 0.0, 100.0, 1);
+        imguiSlider("Point Lights Intensity", &globalPointLightsIntensity, 0.0, 1.0, 0.1);
+        imguiSlider("Point Lights Pos Y", &pointLightPosY, -1.0, 5.0, 0.2);
         imguiSlider("Specular Power", &_specularPower, 0.0, 100.0, 1.0);
-        // imguiSlider("Point light n°1 Intensity", &pointLights[0]._intensity, 0.0, 1.0, 0.1);
-        // imguiSlider("Point light n°2 Intensity", &pointLights[1]._intensity, 0.0, 1.0, 0.1);
-        // imguiSlider("Point light n°1 Pos Y", &pointLights[0]._position.y, -10.0, 20.0, 0.5);
         imguiSlider("Directional light n°1 Intensity", &directionalLights[0]._intensity, 0.0, 1.0, 0.1);
         imguiSlider("Spot light n°1 Intensity", &spotLights[0]._intensity, 0.0, 1.0, 0.1);
         imguiSlider("Spot Light Angle", &spotLights[0]._angle, 0.0, 180.0, 0.1);
@@ -1195,9 +1174,17 @@ plus the data needed to test whether the fragment survives to become a pixel
 (depth, alpha, stencil, scissor, window ID, etc.)
 
 2.
-For Z pre-pass, all opaque geometry is rendered in two passes. The first pass populates the Z buffer with depth values from all opaque geometry. A null pixel shader is used and the color buffer is not updated. For this first pass, only simple vertex shading is performed so unnecessary constant buffer updates and vertex-layout data should be avoided. For the second pass, the geometry is resubmitted with Z writes disabled but Z testing on and full vertex and pixel shading is performed. The graphics hardware takes advantage of Early-Z to avoid performing pixel shading on geometry that is not visible.
+For Z pre-pass, all opaque geometry is rendered in two passes.
+ The first pass populates the Z buffer with depth values from all opaque geometry.
+  A null pixel shader is used and the color buffer is not updated. For this first pass, 
+  only simple vertex shading is performed so unnecessary constant buffer updates and vertex-layout 
+  data should be avoided. For the second pass, the geometry is resubmitted with Z writes disabled 
+  but Z testing on and full vertex and pixel shading is performed. The graphics hardware takes 
+  advantage of Early-Z to avoid performing pixel shading on geometry that is not visible.
 
-Performing a Z pre-pass can be a significant gain when per pixel costs are the dominant bottleneck and overdraw is significant. The increased draw call, vertex and Z related per pixel costs of the pre-pass may be such that this is not a suitable performance optimization in some scenarios.
+Performing a Z pre-pass can be a significant gain when per pixel costs are the dominant bottleneck 
+and overdraw is significant. The increased draw call, vertex and Z related per pixel costs of the 
+pre-pass may be such that this is not a suitable performance optimization in some scenarios.
 
 
 3.
